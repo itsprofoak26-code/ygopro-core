@@ -62,6 +62,7 @@ struct chain {
 	bool was_just_sent{ false };
 	uint16_t chain_id;
 	uint16_t triggering_location;
+	uint8_t triggering_duelist{ 0 }; // team play: duelist of the card when the effect was activated
 	uint32_t triggering_sequence;
 	uint32_t triggering_status{};
 	uint32_t triggering_summon_type{};
@@ -463,6 +464,18 @@ public:
 	uint32_t get_duelist_count(uint8_t playerid, uint8_t location, uint8_t duelist) const;
 	uint8_t resolve_draw_duelist(uint8_t playerid, effect* reason_effect) const;
 	void team_retag(card* pcard, uint8_t playerid, uint8_t location, uint8_t preloc, uint8_t preplayer);
+	// Team play effect scope (rule 1): the duelist whose hand/Deck/Extra Deck of team `team` the
+	// current effect may reach, or DUELIST_ANY for team-wide access.
+	uint8_t team_scope(uint8_t team) const;
+	static bool in_team_scope(const card* pcard, uint8_t scope) {
+		return scope > 1 || pcard->duelist == scope;
+	}
+	// Duelist whose Deck (or Extra Deck) a "top/bottom N cards" operation of the current effect uses.
+	uint8_t team_deck_duelist(uint8_t team, uint8_t location) const;
+	// Brings that duelist's cards to the top (or bottom) of the team's shared Deck/face-down Extra Deck
+	// list, keeping each duelist's own order, and returns how many cards the operation may use.
+	// Outside team play it changes nothing and returns the whole count.
+	size_t team_deck_available(uint8_t team, uint8_t location, bool bottom = false);
 	bool has_separate_pzone(uint8_t p) const;
 	uint32_t get_pzone_zones_flag() const;
 	uint8_t get_pzone_index(uint8_t seq, uint8_t p) const;

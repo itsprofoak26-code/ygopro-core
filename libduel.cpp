@@ -815,10 +815,12 @@ LUA_STATIC_FUNCTION(ConfirmDecktop) {
 	if(playerid != 0 && playerid != 1)
 		return 0;
 	auto count = lua_get<uint32_t>(L, 2);
+	// Team play: only the acting duelist's Deck (brought to the top of the shared list)
+	const auto available = pduel->game_field->team_deck_available(playerid, LOCATION_DECK);
 	const auto& player = pduel->game_field->player[playerid];
 	const auto& list_main = player.list_main;
-	if(count >= list_main.size())
-		count = static_cast<uint32_t>(list_main.size());
+	if(count >= available)
+		count = static_cast<uint32_t>(available);
 	else if(list_main.size() > count) {
 		if(pduel->game_field->core.deck_reversed) {
 			card* pcard = *(list_main.rbegin() + count);
@@ -841,8 +843,9 @@ LUA_STATIC_FUNCTION(ConfirmDecktop) {
 	}
 	return yieldk({
 		auto playerid = lua_get<uint8_t>(L, 1);
+		const auto available = pduel->game_field->team_deck_available(playerid, LOCATION_DECK);
 		auto& main = pduel->game_field->player[playerid].list_main;
-		const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), main.size());
+		const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), available);
 		const auto offset = main.size() - count;
 		auto pgroup = pduel->new_group(main.begin() + offset, main.end());
 		interpreter::pushobject(L, pgroup);
@@ -857,7 +860,7 @@ LUA_STATIC_FUNCTION(ConfirmExtratop) {
 	auto count = lua_get<uint32_t>(L, 2);
 	const auto& player = pduel->game_field->player[playerid];
 	const auto& list_extra = player.list_extra;
-	const uint32_t max_count = static_cast<uint32_t>(list_extra.size()) - player.extra_p_count;
+	const uint32_t max_count = static_cast<uint32_t>(pduel->game_field->team_deck_available(playerid, LOCATION_EXTRA));
 	count = std::min(max_count, count);
 	auto message = pduel->new_message(MSG_CONFIRM_EXTRATOP);
 	message->write<uint8_t>(playerid);
@@ -873,7 +876,8 @@ LUA_STATIC_FUNCTION(ConfirmExtratop) {
 		auto playerid = lua_get<uint8_t>(L, 1);
 		const auto& player = pduel->game_field->player[playerid];
 		auto& extra = player.list_extra;
-		const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), extra.size() - player.extra_p_count);
+		const auto available = pduel->game_field->team_deck_available(playerid, LOCATION_EXTRA);
+		const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), available);
 		auto begin = extra.rbegin() + player.extra_p_count;
 		auto pgroup = pduel->new_group(begin, begin + count);
 		interpreter::pushobject(L, pgroup);
@@ -2221,8 +2225,11 @@ LUA_STATIC_FUNCTION(GetFieldGroupCount) {
 LUA_STATIC_FUNCTION(GetDecktopGroup) {
 	check_param_count(L, 2);
 	auto playerid = lua_get<uint8_t>(L, 1);
+	if(playerid != 0 && playerid != 1)
+		return 0;
+	const auto available = pduel->game_field->team_deck_available(playerid, LOCATION_DECK);
 	auto& main = pduel->game_field->player[playerid].list_main;
-	const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), main.size());
+	const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), available);
 	const auto offset = main.size() - count;
 	auto pgroup = pduel->new_group(main.begin() + offset, main.end());
 	interpreter::pushobject(L, pgroup);
@@ -2231,8 +2238,11 @@ LUA_STATIC_FUNCTION(GetDecktopGroup) {
 LUA_STATIC_FUNCTION(GetDeckbottomGroup) {
 	check_param_count(L, 2);
 	auto playerid = lua_get<uint8_t>(L, 1);
+	if(playerid != 0 && playerid != 1)
+		return 0;
+	const auto available = pduel->game_field->team_deck_available(playerid, LOCATION_DECK, true);
 	auto& main = pduel->game_field->player[playerid].list_main;
-	const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), main.size());
+	const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), available);
 	auto pgroup = pduel->new_group(main.begin(), main.begin() + count);
 	interpreter::pushobject(L, pgroup);
 	return 1;
@@ -2245,9 +2255,12 @@ LUA_STATIC_FUNCTION(GetDeckbottomGroup) {
 LUA_STATIC_FUNCTION(GetExtraTopGroup) {
 	check_param_count(L, 2);
 	auto playerid = lua_get<uint8_t>(L, 1);
+	if(playerid != 0 && playerid != 1)
+		return 0;
+	const auto available = pduel->game_field->team_deck_available(playerid, LOCATION_EXTRA);
 	const auto& player = pduel->game_field->player[playerid];
 	auto& extra = player.list_extra;
-	const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), extra.size() - player.extra_p_count);
+	const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), available);
 	auto begin = extra.rbegin() + player.extra_p_count;
 	auto pgroup = pduel->new_group(begin, begin + count);
 	interpreter::pushobject(L, pgroup);
@@ -3615,7 +3628,7 @@ LUA_STATIC_FUNCTION(IsPlayerCanDraw) {
 	}
 	auto count = lua_get<uint32_t, 0>(L, 2);
 	lua_pushboolean(L, pduel->game_field->is_player_can_draw(playerid)
-					&& (pduel->game_field->player[playerid].list_main.size() >= count));
+					&& (pduel->game_field->team_deck_available(playerid, LOCATION_DECK) >= count));
 	return 1;
 }
 LUA_STATIC_FUNCTION(IsPlayerCanDiscardDeck) {

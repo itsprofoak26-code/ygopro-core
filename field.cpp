@@ -21,6 +21,7 @@ bool chain::chain_operation_sort(const chain& c1, const chain& c2) {
 void chain::set_triggering_state(card* pcard) {
 	triggering_controler = pcard->current.controler;
 	triggering_location = pcard->current.location;
+	triggering_duelist = pcard->duelist;
 	if(pcard->current.location & (LOCATION_MZONE | LOCATION_SZONE)) {
 		if(pcard->current.is_location(LOCATION_FZONE))
 			triggering_location |= LOCATION_FZONE;
@@ -1291,13 +1292,59 @@ void field::team_retag(card* pcard, uint8_t playerid, uint8_t location, uint8_t 
 		return;
 	pcard->duelist = (playerid == pcard->owner) ? pcard->owner_duelist : 0;
 }
-uint8_t field::resolve_draw_duelist(uint8_t playerid, effect* reason_effect) const {
-	if(reason_effect) {
-		card* handler = reason_effect->get_handler();
-		if(handler && handler->owner == playerid)
-			return handler->duelist;
+uint8_t field::resolve_draw_duelist(uint8_t playerid, effect* /*reason_effect*/) const {
+	auto duelist = team_deck_duelist(playerid, LOCATION_DECK);
+	return duelist <= 1 ? duelist : 0;
+}
+uint8_t field::team_scope(uint8_t team) const {
+	constexpr uint32_t PRIVATE = LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA;
+	if(!is_team_play() || team > 1)
+		return DUELIST_ANY;
+	effect* peffect = core.reason_effect;
+	if(!peffect)
+		return DUELIST_ANY;
+	// An effect being activated or resolving as a chain link: where it was activated decides.
+	// (Spells/Traps played from the hand record the field, so they are team-wide.)
+	if(!core.current_chain.empty() && core.current_chain.back().triggering_effect == peffect) {
+		const auto& ch = core.current_chain.back();
+		if(ch.triggering_controler != team || !(ch.triggering_location & PRIVATE))
+			return DUELIST_ANY;
+		return ch.triggering_duelist;
 	}
-	return get_duelist_count(playerid, LOCATION_DECK, 1) > get_duelist_count(playerid, LOCATION_DECK, 0) ? 1 : 0;
+	// Activation checks and continuous effects: where the card is now. Activating a card itself
+	// (Spell/Trap) puts it on the field, so it is team-wide.
+	if(peffect->type & EFFECT_TYPE_ACTIVATE)
+		return DUELIST_ANY;
+	card* handler = peffect->get_handler();
+	if(!handler || handler->current.controler != team || !(handler->current.location & PRIVATE))
+		return DUELIST_ANY;
+	return handler->duelist;
+}
+uint8_t field::team_deck_duelist(uint8_t team, uint8_t location) const {
+	if(!is_team_play() || team > 1)
+		return DUELIST_ANY;
+	if(auto scope = team_scope(team); scope <= 1)
+		return scope;
+	if(auto chosen = core.team_dest_duelist[team]; chosen <= 1)
+		return chosen;
+	// No choice yet (the duelist-choice prompt is not built): the duelist with more cards there
+	return get_duelist_count(team, location, 1) > get_duelist_count(team, location, 0) ? 1 : 0;
+}
+size_t field::team_deck_available(uint8_t team, uint8_t location, bool bottom) {
+	auto& list = location == LOCATION_EXTRA ? player[team].list_extra : player[team].list_main;
+	// The Extra Deck's face-up Pendulums sit at the end of the list; only the face-down part has a "top"
+	const size_t facedown = location == LOCATION_EXTRA ? list.size() - player[team].extra_p_count : list.size();
+	const auto duelist = team_deck_duelist(team, location);
+	if(duelist > 1)
+		return facedown;
+	auto mine = [duelist](card* pcard) { return pcard->duelist == duelist; };
+	auto end = list.begin() + facedown;
+	if(bottom)
+		std::stable_partition(list.begin(), end, mine);
+	else
+		std::stable_partition(list.begin(), end, [&mine](card* pcard) { return !mine(pcard); });
+	reset_sequence(team, location);
+	return static_cast<size_t>(std::count_if(list.begin(), end, mine));
 }
 bool field::has_separate_pzone(uint8_t p) const {
 	(void)p;
@@ -1653,6 +1700,11 @@ int32_t field::filter_matching_card(int32_t findex, uint8_t self, uint32_t locat
 	auto check_list = [](const auto& list, auto func)->bool {
 		return std::find_if(list.begin(), list.end(), func) != list.end();
 	};
+	// Team play: hand/Deck/Extra Deck cards outside the current effect's scope are invisible
+	const uint8_t scope[2] = { team_scope(0), team_scope(1) };
+	auto privchk = [&](auto pcard)->bool {
+		return in_team_scope(pcard, scope[self]) && checkc(pcard);
+	};
 	for(uint32_t p = 0, location = location1; p < 2; ++p, location = location2, self = 1 - self) {
 		if(location & LOCATION_MZONE) {
 			if(check_list(player[self].list_mzone, mzonechk))
@@ -1694,11 +1746,11 @@ int32_t field::filter_matching_card(int32_t findex, uint8_t self, uint32_t locat
 			if((location & LOCATION_PZONE) && (pzonechk(player[self].list_szone[get_pzone_index(0, self)]) || pzonechk(player[self].list_szone[get_pzone_index(1, self)])))
 				return TRUE;
 		}
-		if((location & LOCATION_DECK) && check_list(player[self].list_main, checkc))
+		if((location & LOCATION_DECK) && check_list(player[self].list_main, privchk))
 			return TRUE;
-		if((location & LOCATION_EXTRA) && check_list(player[self].list_extra, checkc))
+		if((location & LOCATION_EXTRA) && check_list(player[self].list_extra, privchk))
 			return TRUE;
-		if((location & LOCATION_HAND) && check_list(player[self].list_hand, checkc))
+		if((location & LOCATION_HAND) && check_list(player[self].list_hand, privchk))
 			return TRUE;
 		if((location & LOCATION_GRAVE) && check_list(player[self].list_grave, checkc))
 			return TRUE;
@@ -1713,6 +1765,17 @@ int32_t field::filter_field_card(uint8_t self, uint32_t location1, uint32_t loca
 		return 0;
 	uint32_t location = location1;
 	size_t count = 0;
+	// Team play: hand/Deck/Extra Deck cards outside the current effect's scope are invisible
+	const uint8_t scope[2] = { team_scope(0), team_scope(1) };
+	auto add_private = [&](auto begin, auto end) {
+		for(; begin != end; ++begin) {
+			if(!in_team_scope(*begin, scope[self]))
+				continue;
+			if(pgroup)
+				pgroup->container.insert(*begin);
+			++count;
+		}
+	};
 	for(uint32_t p = 0; p < 2; ++p, location = location2, self = 1 - self) {
 		if(location & LOCATION_MZONE) {
 			for(auto& pcard : player[self].list_mzone) {
@@ -1794,21 +1857,12 @@ int32_t field::filter_field_card(uint8_t self, uint32_t location1, uint32_t loca
 				}
 			}
 		}
-		if(location & LOCATION_HAND) {
-			if(pgroup)
-				pgroup->container.insert(player[self].list_hand.begin(), player[self].list_hand.end());
-			count += player[self].list_hand.size();
-		}
-		if(location & LOCATION_DECK) {
-			if(pgroup)
-				pgroup->container.insert(player[self].list_main.rbegin(), player[self].list_main.rend());
-			count += player[self].list_main.size();
-		}
-		if(location & LOCATION_EXTRA) {
-			if(pgroup)
-				pgroup->container.insert(player[self].list_extra.rbegin(), player[self].list_extra.rend());
-			count += player[self].list_extra.size();
-		}
+		if(location & LOCATION_HAND)
+			add_private(player[self].list_hand.begin(), player[self].list_hand.end());
+		if(location & LOCATION_DECK)
+			add_private(player[self].list_main.rbegin(), player[self].list_main.rend());
+		if(location & LOCATION_EXTRA)
+			add_private(player[self].list_extra.rbegin(), player[self].list_extra.rend());
 		if(location & LOCATION_GRAVE) {
 			if(pgroup)
 				pgroup->container.insert(player[self].list_grave.rbegin(), player[self].list_grave.rend());
@@ -2726,12 +2780,12 @@ int32_t field::is_player_can_draw(uint8_t playerid) {
 	return !is_player_affected_by_effect(playerid, EFFECT_CANNOT_DRAW);
 }
 int32_t field::is_player_can_discard_deck(uint8_t playerid, uint32_t count) {
-	if(player[playerid].list_main.size() < count)
+	if(team_deck_available(playerid, LOCATION_DECK) < count)
 		return FALSE;
 	return !is_player_affected_by_effect(playerid, EFFECT_CANNOT_DISCARD_DECK);
 }
 int32_t field::is_player_can_discard_deck_as_cost(uint8_t playerid, uint32_t count) {
-	if(player[playerid].list_main.size() < count)
+	if(team_deck_available(playerid, LOCATION_DECK) < count)
 		return FALSE;
 	if(is_player_affected_by_effect(playerid, EFFECT_CANNOT_DISCARD_DECK))
 		return FALSE;

@@ -4768,6 +4768,9 @@ bool field::process(Processors::DiscardDeck& arg) {
 			returns.set<int32_t>(0, 0);
 			return TRUE;
 		}
+		// Team play: only the acting duelist's Deck, brought to the top of the shared list
+		if(const auto available = team_deck_available(playerid, LOCATION_DECK); static_cast<size_t>(count) > available)
+			arg.count = count = static_cast<decltype(count)>(available);
 		int32_t i = 0;
 		for(auto cit = player[playerid].list_main.rbegin(); i < count && cit != player[playerid].list_main.rend(); ++cit, ++i) {
 			uint32_t dest = LOCATION_GRAVE;

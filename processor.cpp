@@ -5080,6 +5080,12 @@ bool field::process(Processors::SortDeck& arg) {
 	auto count = arg.count;
 	bool bottom = arg.bottom;
 	auto& list = player[target_player].list_main;
+	// Team play: only the acting duelist's Deck, brought to the top (or bottom) of the shared list
+	if(arg.step == 0) {
+		if(const auto available = team_deck_available(target_player, LOCATION_DECK, bottom); count > available)
+			arg.count = static_cast<uint16_t>(available);
+	}
+	count = arg.count;
 	if(count > list.size())
 		count = static_cast<uint16_t>(list.size());
 	switch(arg.step) {
