@@ -264,8 +264,7 @@ struct ForcedBattle : public Process<false> {
 };
 struct AddChain : public Process<false> {
 	bool is_activated_effect;
-	uint8_t team_choice_stage{ 0 }; // team play duelist choice: 0/2 ask own/opposing team, 1/3 read answer
-	uint8_t team_choice_team{ 0 };
+	uint8_t team_choice_stage{ 0 }; // team play duelist choice: 0 own team, 1 opposing team, 2 done
 	AddChain(uint16_t step_) :
 		Process(step_), is_activated_effect(false) {}
 };
@@ -746,6 +745,12 @@ struct RefreshRelay : public Process<false> {
 	RefreshRelay(uint16_t step_) :
 		Process(step_) {}
 };
+// Team play: the activating team chooses which duelist of `team` the current chain link applies to
+struct TeamChooseDuelist : public Process<false> {
+	uint8_t team;
+	TeamChooseDuelist(uint16_t step_, uint8_t team_) :
+		Process(step_), team(team_) {}
+};
 
 using processors = std::variant<Adjust, Turn, RefreshLoc, Startup,
 	SelectBattleCmd, SelectIdleCmd, SelectEffectYesNo, SelectYesNo,
@@ -763,7 +768,7 @@ using processors = std::variant<Adjust, Turn, RefreshLoc, Startup,
 	PayLPCost, RemoveCounter, AttackDisable, AnnounceRace, AnnounceAttribute,
 	AnnounceCard, AnnounceNumber, TossCoin, TossDice, RockPaperScissors,
 	SelectFusion, DiscardHand, DiscardDeck, SortDeck, RemoveOverlay, XyzOverlay,
-	RefreshRelay>;
+	RefreshRelay, TeamChooseDuelist>;
 
 /*
 * Hack to make the code compile with gcc in debug mode by having

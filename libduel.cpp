@@ -23,6 +23,7 @@ namespace LUA_NAMESPACE {
 
 using namespace scriptlib;
 
+static void team_ask_for_pile_cards(duel* pduel, lua_State* L, uint8_t playerid); // team play, see below
 LUA_STATIC_FUNCTION(EnableGlobalFlag) {
 	check_param_count(L, 1);
 	// noop
@@ -464,6 +465,7 @@ LUA_STATIC_FUNCTION(SendtoHand) {
 		return 0;
 	auto reason = lua_get<uint32_t>(L, 3);
 	const auto reasonplayer = lua_get<uint8_t>(L, 4, pduel->game_field->core.reason_player);
+	team_ask_for_pile_cards(pduel, L, playerid);
 	if(auto [pcard, pgroup] = lua_get_card_or_group(L, 1); pcard)
 		pduel->game_field->send_to(pcard, pduel->game_field->core.reason_effect, reason, reasonplayer, playerid, LOCATION_HAND, 0, POS_FACEUP);
 	else
@@ -483,6 +485,8 @@ LUA_STATIC_FUNCTION(SendtoDeck) {
 	auto reason = lua_get<uint32_t>(L, 4);
 	const auto reasonplayer = lua_get<uint8_t>(L, 5, pduel->game_field->core.reason_player);
 	uint16_t location = (sequence == -2) ? 0 : LOCATION_DECK;
+	if(location)
+		team_ask_for_pile_cards(pduel, L, playerid);
 	if(auto [pcard, pgroup] = lua_get_card_or_group(L, 1); pcard)
 		pduel->game_field->send_to(pcard, pduel->game_field->core.reason_effect, reason, reasonplayer, playerid, location, sequence, POS_FACEUP);
 	else
@@ -809,11 +813,39 @@ LUA_STATIC_FUNCTION(GetChainMaterial) {
 	interpreter::pushobject(L, eset[0]);
 	return 1;
 }
+// Team play: before cards move from the GY/banished into a team's hand or Deck, ask which duelist
+// of that team gets them (unless one was chosen). `playerid` PLAYER_NONE means each card's owner.
+static void team_ask_for_pile_cards(duel* pduel, lua_State* L, uint8_t playerid) {
+	auto& field = *pduel->game_field;
+	if(!field.is_team_play())
+		return;
+	bool asked[2] = { false, false };
+	auto check = [&](card* pcard) {
+		if(!(pcard->current.location & (LOCATION_GRAVE | LOCATION_REMOVED)))
+			return;
+		const uint8_t team = playerid == PLAYER_NONE ? pcard->owner : playerid;
+		if(team <= 1 && !asked[team])
+			asked[team] = field.team_ask_before(team);
+	};
+	if(auto [pcard, pgroup] = lua_get_card_or_group(L, 1); pcard)
+		check(pcard);
+	else
+		for(auto* gcard : pgroup->container)
+			check(gcard);
+}
+static int32_t confirm_decktop(lua_State* L, duel* pduel);
 LUA_STATIC_FUNCTION(ConfirmDecktop) {
 	check_param_count(L, 2);
 	auto playerid = lua_get<uint8_t>(L, 1);
 	if(playerid != 0 && playerid != 1)
 		return 0;
+	// Team play: choose whose Deck is revealed first, then reveal it
+	if(pduel->game_field->team_ask_before(playerid))
+		return yieldk({ return confirm_decktop(L, pduel); });
+	return confirm_decktop(L, pduel);
+}
+static int32_t confirm_decktop(lua_State* L, duel* pduel) {
+	auto playerid = lua_get<uint8_t>(L, 1);
 	auto count = lua_get<uint32_t>(L, 2);
 	// Team play: only the acting duelist's Deck (brought to the top of the shared list)
 	const auto available = pduel->game_field->team_deck_available(playerid, LOCATION_DECK);
@@ -949,6 +981,7 @@ LUA_STATIC_FUNCTION(SortDecktop) {
 		return 0;
 	if(count < 1 || count > 64)
 		return 0;
+	pduel->game_field->team_ask_before(target_player);
 	pduel->game_field->emplace_process<Processors::SortDeck>(sort_player, target_player, count, false);
 	return yield();
 }
@@ -964,6 +997,7 @@ LUA_STATIC_FUNCTION(SortDeckbottom) {
 		return 0;
 	if(count < 1 || count > 64)
 		return 0;
+	pduel->game_field->team_ask_before(target_player);
 	pduel->game_field->emplace_process<Processors::SortDeck>(sort_player, target_player, count, true);
 	return yield();
 }
@@ -1156,6 +1190,7 @@ LUA_STATIC_FUNCTION(Draw) {
 		return 0;
 	auto count = lua_get<uint32_t>(L, 2);
 	auto reason = lua_get<uint32_t>(L, 3);
+	pduel->game_field->team_ask_before(playerid); // team play: which duelist draws
 	pduel->game_field->draw(pduel->game_field->core.reason_effect, reason, pduel->game_field->core.reason_player, playerid, count);
 	return yieldk({
 		lua_pushinteger(L, pduel->game_field->returns.at<int32_t>(0));
@@ -1310,6 +1345,7 @@ LUA_STATIC_FUNCTION(DiscardDeck) {
 	auto playerid = lua_get<uint8_t>(L, 1);
 	auto count = lua_get<uint16_t>(L, 2);
 	auto reason = lua_get<uint32_t>(L, 3);
+	pduel->game_field->team_ask_before(playerid); // team play: whose Deck is milled (also as a cost)
 	pduel->game_field->emplace_process<Processors::DiscardDeck>(playerid, count, reason);
 	return yieldk({
 		lua_pushinteger(L, pduel->game_field->returns.at<int32_t>(0));

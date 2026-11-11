@@ -3848,36 +3848,14 @@ bool field::process(Processors::AddChain& arg) {
 	case 8: {
 		// Team play: once costs and targets are done, choose which duelist of each team the effect
 		// applies to (own team, then opposing team). Either teammate may answer.
-		if(is_team_play() && arg.team_choice_stage < 4) {
+		// (A cost may already have asked, e.g. a mill cost: then no second prompt.)
+		if(is_team_play() && arg.team_choice_stage < 2) {
 			auto& clit = core.current_chain.back();
 			const uint8_t tp = clit.triggering_player;
-			if(arg.team_choice_stage == 0 || arg.team_choice_stage == 2) {
-				const uint8_t team = arg.team_choice_stage == 0 ? tp : 1 - tp;
-				if(tp <= 1 && team_choice_needed(clit, team)) {
-					auto message = pduel->new_message(MSG_HINT);
-					message->write<uint8_t>(HINT_SELECTMSG);
-					message->write<uint8_t>(tp);
-					message->write<uint64_t>(TEAM_DUELIST_DESC + (team == tp ? 4 : 5));
-					core.select_options.clear();
-					core.select_options.push_back(TEAM_DUELIST_DESC + team * 2 + 0);
-					core.select_options.push_back(TEAM_DUELIST_DESC + team * 2 + 1);
-					emplace_process<Processors::SelectOption>(tp);
-					arg.team_choice_team = team;
-					arg.team_choice_stage += 1;
-				} else {
-					arg.team_choice_stage += 2;
-				}
-			} else {
-				const uint8_t team = arg.team_choice_team;
-				const auto choice = static_cast<uint8_t>(returns.at<int32_t>(0) == 1 ? 1 : 0);
-				clit.team_choice[team] = choice;
-				// Show everyone who was chosen
-				auto message = pduel->new_message(MSG_HINT);
-				message->write<uint8_t>(HINT_OPSELECTED);
-				message->write<uint8_t>(tp);
-				message->write<uint64_t>(TEAM_DUELIST_DESC + team * 2 + choice);
-				arg.team_choice_stage += 1;
-			}
+			const uint8_t team = arg.team_choice_stage == 0 ? tp : 1 - tp;
+			if(tp <= 1 && clit.team_choice[team] > 1 && team_choice_needed(clit, team))
+				emplace_process<Processors::TeamChooseDuelist>(team);
+			++arg.team_choice_stage;
 			arg.step = 7; // run step 8 again
 			return FALSE;
 		}
@@ -5109,6 +5087,39 @@ bool field::process(Processors::Startup& arg) {
 	return TRUE;
 }
 
+bool field::process(Processors::TeamChooseDuelist& arg) {
+	const auto team = arg.team;
+	if(core.current_chain.empty() || team > 1)
+		return TRUE;
+	auto& ch = core.current_chain.back();
+	const uint8_t tp = ch.triggering_player;
+	switch(arg.step) {
+	case 0: {
+		if(tp > 1 || ch.team_choice[team] <= 1)
+			return TRUE;
+		auto message = pduel->new_message(MSG_HINT);
+		message->write<uint8_t>(HINT_SELECTMSG);
+		message->write<uint8_t>(tp);
+		message->write<uint64_t>(TEAM_DUELIST_DESC + (team == tp ? 4 : 5));
+		core.select_options.clear();
+		core.select_options.push_back(TEAM_DUELIST_DESC + team * 2 + 0);
+		core.select_options.push_back(TEAM_DUELIST_DESC + team * 2 + 1);
+		emplace_process<Processors::SelectOption>(tp);
+		return FALSE;
+	}
+	case 1: {
+		const auto choice = static_cast<uint8_t>(returns.at<int32_t>(0) == 1 ? 1 : 0);
+		ch.team_choice[team] = choice;
+		// Show everyone who was chosen
+		auto message = pduel->new_message(MSG_HINT);
+		message->write<uint8_t>(HINT_OPSELECTED);
+		message->write<uint8_t>(tp);
+		message->write<uint64_t>(TEAM_DUELIST_DESC + team * 2 + choice);
+		return TRUE;
+	}
+	}
+	return TRUE;
+}
 bool field::process(Processors::SortDeck& arg) {
 	auto sort_player = arg.sort_player;
 	auto target_player = arg.target_player;

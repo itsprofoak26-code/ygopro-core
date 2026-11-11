@@ -1309,8 +1309,11 @@ uint8_t field::team_scope(uint8_t team) const {
 	// (Spells/Traps played from the hand record the field, so they are team-wide.)
 	if(!core.current_chain.empty() && core.current_chain.back().triggering_effect == peffect) {
 		const auto& ch = core.current_chain.back();
+		// A duelist chosen for this team: the effect applies to that duelist only (either team)
+		if(ch.team_choice[team] <= 1)
+			return ch.team_choice[team];
 		if(team != ch.triggering_player)
-			return ch.team_choice[team]; // rule 3: the chosen opposing duelist, if one was chosen
+			return DUELIST_ANY;
 		if(ch.triggering_controler != team || !(ch.triggering_location & PRIVATE))
 			return DUELIST_ANY;
 		return ch.triggering_duelist;
@@ -1365,6 +1368,26 @@ bool field::team_choice_needed(const chain& ch, uint8_t team) const {
 	}
 	// Rule 3: effects on the opposing team's hand or Deck
 	return hits(CAT_HANDES, for_team) || hits(CAT_DRAW, for_team) || hits(CAT_DECKDES, for_team);
+}
+bool field::team_choice_pending(uint8_t team) const {
+	constexpr uint32_t PRIVATE = LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA;
+	if(!is_team_play() || team > 1 || !core.reason_effect || core.current_chain.empty())
+		return false;
+	if(core.team_dest_duelist[team] <= 1)
+		return false;
+	const auto& ch = core.current_chain.back();
+	if(ch.triggering_effect != core.reason_effect || ch.triggering_player > 1 || ch.team_choice[team] <= 1)
+		return false;
+	// Rule 1: an effect activated from its duelist's hand/Deck/Extra Deck is already bound
+	if(team == ch.triggering_player && team == ch.triggering_controler && (ch.triggering_location & PRIVATE))
+		return false;
+	return true;
+}
+bool field::team_ask_before(uint8_t team) {
+	if(!team_choice_pending(team))
+		return false;
+	emplace_process<Processors::TeamChooseDuelist>(team);
+	return true;
 }
 uint8_t field::team_deck_duelist(uint8_t team, uint8_t location) const {
 	if(!is_team_play() || team > 1)

@@ -477,6 +477,10 @@ public:
 	uint8_t team_chain_choice(uint8_t team) const;
 	// Whether a new chain link must ask which duelist of `team` it applies to
 	bool team_choice_needed(const chain& ch, uint8_t team) const;
+	// Whether the current chain link is team-wide for `team` and nobody chose a duelist yet
+	bool team_choice_pending(uint8_t team) const;
+	// If so, queue the choice (it runs before the next queued unit). Returns true if queued.
+	bool team_ask_before(uint8_t team);
 	// Brings that duelist's cards to the top (or bottom) of the team's shared Deck/face-down Extra Deck
 	// list, keeping each duelist's own order, and returns how many cards the operation may use.
 	// Outside team play it changes nothing and returns the whole count.
@@ -702,6 +706,7 @@ public:
 	bool process(Processors::SendTo& arg);
 	bool process(Processors::DiscardDeck& arg);
 	bool process(Processors::SortDeck& arg);
+	bool process(Processors::TeamChooseDuelist& arg);
 	bool process(Processors::DiscardHand& arg);
 	bool process(Processors::MoveToField& arg);
 	bool process(Processors::ChangePos& arg);
