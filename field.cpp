@@ -1248,6 +1248,37 @@ void field::next_player(uint8_t playerid) {
 bool field::is_flag(uint64_t flag) const {
 	return (core.duel_options & flag) == flag;
 }
+// Team play: top card of one duelist's Deck (both Decks share list_main; top = back).
+card* field::get_deck_top(uint8_t playerid, uint8_t duelist) const {
+	const auto& main = player[playerid].list_main;
+	for(auto it = main.rbegin(); it != main.rend(); ++it) {
+		if((*it)->duelist == duelist)
+			return *it;
+	}
+	return nullptr;
+}
+// Team play: how many cards one duelist has in their hand, Deck or Extra Deck.
+uint32_t field::get_duelist_count(uint8_t playerid, uint8_t location, uint8_t duelist) const {
+	const card_vector* list = nullptr;
+	switch(location) {
+	case LOCATION_HAND: list = &player[playerid].list_hand; break;
+	case LOCATION_DECK: list = &player[playerid].list_main; break;
+	case LOCATION_EXTRA: list = &player[playerid].list_extra; break;
+	default: return 0;
+	}
+	return static_cast<uint32_t>(std::count_if(list->begin(), list->end(), [duelist](card* pcard) { return pcard->duelist == duelist; }));
+}
+// Team play (Milestone 1 placeholder until duelist choice exists):
+// an effect from one of the team's own cards draws from that card's duelist;
+// anything else draws from the duelist with the most cards left in their Deck.
+uint8_t field::resolve_draw_duelist(uint8_t playerid, effect* reason_effect) const {
+	if(reason_effect) {
+		card* handler = reason_effect->get_handler();
+		if(handler && handler->owner == playerid)
+			return handler->duelist;
+	}
+	return get_duelist_count(playerid, LOCATION_DECK, 1) > get_duelist_count(playerid, LOCATION_DECK, 0) ? 1 : 0;
+}
 bool field::has_separate_pzone(uint8_t p) const {
 	(void)p;
 	return is_flag(DUEL_SEPARATE_PZONE);

@@ -147,8 +147,8 @@ void field::swap_control(effect* reason_effect, uint32_t reason_player, card* pc
 void field::equip(uint8_t equip_player, card* equip_card, card* target, bool faceup, bool is_step) {
 	emplace_process<Processors::Equip>(equip_player, equip_card, target, faceup, is_step);
 }
-void field::draw(effect* reason_effect, uint32_t reason, uint8_t reason_player, uint8_t playerid, uint16_t count) {
-	emplace_process<Processors::Draw>(reason_effect, reason, reason_player, playerid, count);
+void field::draw(effect* reason_effect, uint32_t reason, uint8_t reason_player, uint8_t playerid, uint16_t count, uint8_t duelist) {
+	emplace_process<Processors::Draw>(reason_effect, reason, reason_player, playerid, count, duelist);
 }
 void field::damage(effect* reason_effect, uint32_t reason, uint8_t reason_player, card* reason_card, uint8_t playerid, uint32_t amount, bool is_step) {
 	if(reason & REASON_BATTLE)
@@ -429,16 +429,27 @@ bool field::process(Processors::Draw& arg) {
 			return TRUE;
 		}
 		core.overdraw[playerid] = false;
+		// Team play: both duelists' Decks share list_main; draw from one duelist's cards only.
+		const bool team_play = is_team_play();
+		const uint8_t draw_duelist = team_play
+			? (arg.duelist == DUELIST_ANY ? resolve_draw_duelist(playerid, reason_effect) : arg.duelist)
+			: DUELIST_ANY;
 		for(uint32_t i = 0; i < count; ++i) {
-			if(player[playerid].list_main.size() == 0) {
+			card* pcard = team_play ? get_deck_top(playerid, draw_duelist)
+			                        : (player[playerid].list_main.empty() ? nullptr : player[playerid].list_main.back());
+			if(!pcard) {
 				core.overdraw[playerid] = true;
 				break;
 			}
 			++drawn;
-			card* pcard = player[playerid].list_main.back();
 			pcard->enable_field_effect(false);
 			pcard->cancel_field_effect();
-			player[playerid].list_main.pop_back();
+			if(pcard == player[playerid].list_main.back()) {
+				player[playerid].list_main.pop_back();
+			} else {
+				player[playerid].list_main.erase(player[playerid].list_main.begin() + pcard->current.sequence);
+				reset_sequence(playerid, LOCATION_DECK);
+			}
 			if(core.current_chain.size() > 0)
 				core.just_sent_cards.insert(pcard);
 			pcard->previous.controler = pcard->current.controler;

@@ -132,6 +132,7 @@ void card::get_infos(uint32_t query_flag) {
 	CHECK_AND_INSERT(QUERY_BASE_DEFENSE, get_base_defense());
 	CHECK_AND_INSERT(QUERY_REASON, current.reason);
 	CHECK_AND_INSERT(QUERY_COVER, cover);
+	CHECK_AND_INSERT_T(QUERY_DUELIST, duelist, uint8_t);
 	if(query_flag & QUERY_REASON_CARD) {
 		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint64_t));
 		insert_value<uint32_t>(pduel->query_buffer, QUERY_REASON_CARD);

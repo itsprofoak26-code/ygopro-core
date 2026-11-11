@@ -454,6 +454,11 @@ public:
 	void next_player(uint8_t playerid);
 
 	bool is_flag(uint64_t flag) const;
+	// Team play helpers
+	bool is_team_play() const { return is_flag(DUEL_TEAM_PLAY); }
+	card* get_deck_top(uint8_t playerid, uint8_t duelist) const;
+	uint32_t get_duelist_count(uint8_t playerid, uint8_t location, uint8_t duelist) const;
+	uint8_t resolve_draw_duelist(uint8_t playerid, effect* reason_effect) const;
 	bool has_separate_pzone(uint8_t p) const;
 	uint32_t get_pzone_zones_flag() const;
 	uint8_t get_pzone_index(uint8_t seq, uint8_t p) const;
@@ -621,7 +626,7 @@ public:
 	void swap_control(effect* reason_effect, uint32_t reason_player, card_set targets1, card_set targets2, uint32_t reset_phase, uint32_t reset_count);
 	void swap_control(effect* reason_effect, uint32_t reason_player, card* pcard1, card* pcard2, uint32_t reset_phase, uint32_t reset_count);
 	void equip(uint8_t equip_player, card* equip_card, card* target, bool faceup, bool is_step);
-	void draw(effect* reason_effect, uint32_t reason, uint8_t reason_player, uint8_t playerid, uint16_t count);
+	void draw(effect* reason_effect, uint32_t reason, uint8_t reason_player, uint8_t playerid, uint16_t count, uint8_t duelist = DUELIST_ANY);
 	void damage(effect* reason_effect, uint32_t reason, uint8_t reason_player, card* reason_card, uint8_t playerid, uint32_t amount, bool is_step = false);
 	void recover(effect* reason_effect, uint32_t reason, uint32_t reason_player, uint32_t playerid, uint32_t amount, bool is_step = false);
 	void summon(uint8_t sumplayer, card* target, effect* summon_procedure_effect, bool ignore_count, uint8_t min_tribute, uint32_t zone = 0x1f);

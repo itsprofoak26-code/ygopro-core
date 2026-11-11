@@ -81,6 +81,18 @@ void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
 					pcard->set_status(STATUS_PROC_COMPLETE, TRUE);
 			}
 		}
+	} else if(game_field.is_team_play()) {
+		// Team play: the second duelist's cards go into the team's shared lists, tagged
+		// with their duelist, so both duelists' Decks and Extra Decks are live at once.
+		if(info.team > 1 || duelist > 1 || !(info.loc & (LOCATION_DECK | LOCATION_EXTRA)))
+			return;
+		card* pcard = pduel->new_card(info.code);
+		pcard->owner = info.team;
+		pcard->duelist = static_cast<uint8_t>(duelist);
+		game_field.add_card(info.team, pcard, static_cast<uint8_t>(info.loc), 0);
+		pcard->current.position = POS_FACEDOWN_DEFENSE;
+		pcard->enable_field_effect(true);
+		game_field.adjust_instant();
 	} else {
 		if(info.team > 1 || !(info.loc & (LOCATION_DECK | LOCATION_EXTRA)))
 			return;

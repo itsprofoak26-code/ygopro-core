@@ -118,6 +118,9 @@ public:
 	card_state temp{};
 	card_state current{};
 	uint8_t owner{ PLAYER_NONE };
+	// Team play: which duelist of the owning team this card belongs to (0 or 1).
+	// Decides whose hand/Deck/Extra Deck it lives in.
+	uint8_t duelist{ 0 };
 	struct summon_info {
 		uint32_t type{};
 		uint8_t player{};

@@ -506,13 +506,14 @@ struct Draw : public Process<false> {
 	uint16_t count;
 	uint8_t reason_player;
 	uint8_t playerid;
+	uint8_t duelist; // team play: duelist whose Deck is drawn from (DUELIST_ANY = pick automatically)
 	uint32_t reason;
 	effect* reason_effect;
 	card_set drawn_set;
 	Draw(uint16_t step_, effect* reason_effect_, uint32_t reason_, uint8_t reason_player_,
-				  uint8_t playerid_, uint16_t count_) :
+				  uint8_t playerid_, uint16_t count_, uint8_t duelist_) :
 		Process(step_), count(count_), reason_player(reason_player_), playerid(playerid_),
-		reason(reason_), reason_effect(reason_effect_) {}
+		duelist(duelist_), reason(reason_), reason_effect(reason_effect_) {}
 };
 struct Damage : public Process<false> {
 	uint8_t reason_player;

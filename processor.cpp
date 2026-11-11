@@ -530,13 +530,27 @@ bool field::process(Processors::PhaseEvent& arg) {
 		if(eset.size())
 			limit = eset.back()->get_value();
 		int32_t hd = static_cast<int32_t>(player[infos.turn_player].list_hand.size());
+		uint8_t over_duelist = DUELIST_ANY;
+		if(is_team_play()) {
+			// Team play: the hand size limit applies to each duelist separately
+			for(uint8_t d = 0; d < 2 && over_duelist == DUELIST_ANY; ++d) {
+				auto dcount = static_cast<int32_t>(get_duelist_count(infos.turn_player, LOCATION_HAND, d));
+				if(dcount > limit) {
+					over_duelist = d;
+					hd = dcount;
+				}
+			}
+			if(over_duelist == DUELIST_ANY)
+				hd = 0;
+		}
 		if(hd <= limit || is_flag(DUEL_NO_HAND_LIMIT)) {
 			arg.step = 24;
 			return FALSE;
 		}
 		core.select_cards.clear();
 		for(auto& pcard : player[infos.turn_player].list_hand)
-			core.select_cards.push_back(pcard);
+			if(over_duelist == DUELIST_ANY || pcard->duelist == over_duelist)
+				core.select_cards.push_back(pcard);
 		auto message = pduel->new_message(MSG_HINT);
 		message->write<uint8_t>(HINT_SELECTMSG);
 		message->write<uint8_t>(infos.turn_player);
@@ -3333,7 +3347,7 @@ bool field::process(Processors::Turn& arg) {
 		infos.turn_player = turn_player;
 		auto message = pduel->new_message(MSG_NEW_TURN);
 		message->write<uint8_t>(turn_player);
-		if(!is_flag(DUEL_RELAY) && infos.turn_id != 1)
+		if(!is_flag(DUEL_RELAY) && !is_team_play() && infos.turn_id != 1)
 			tag_swap(turn_player);
 		if(is_player_affected_by_effect(infos.turn_player, EFFECT_SKIP_TURN)) {
 			arg.step = 18;
@@ -3384,7 +3398,13 @@ bool field::process(Processors::Turn& arg) {
 				count = std::max<int32_t>(static_cast<int32_t>(5 - player[turn_player].list_hand.size()), count);
 			}
 			if(count > 0) {
-				draw(nullptr, REASON_RULE, turn_player, turn_player, count);
+				if(is_team_play()) {
+					// Team play: both duelists draw
+					draw(nullptr, REASON_RULE, turn_player, turn_player, count, 0);
+					draw(nullptr, REASON_RULE, turn_player, turn_player, count, 1);
+				} else {
+					draw(nullptr, REASON_RULE, turn_player, turn_player, count);
+				}
 				emplace_process<Processors::PointEvent>(false, false, false);
 			}
 		}
@@ -5021,6 +5041,14 @@ bool field::process(Processors::Startup& arg) {
 		for(int p = 0; p < 2; p++) {
 			core.shuffle_hand_check[p] = false;
 			core.shuffle_deck_check[p] = false;
+			if(is_team_play()) {
+				// Team play: every duelist draws their own opening hand
+				if(player[p].start_count > 0) {
+					draw(nullptr, REASON_RULE, PLAYER_NONE, p, player[p].start_count, 0);
+					draw(nullptr, REASON_RULE, PLAYER_NONE, p, player[p].start_count, 1);
+				}
+				continue;
+			}
 			if(player[p].start_count > 0)
 				draw(nullptr, REASON_RULE, PLAYER_NONE, p, player[p].start_count);
 			auto list_size = player[p].extra_lists_main.size();
