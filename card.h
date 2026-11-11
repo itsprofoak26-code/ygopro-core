@@ -121,6 +121,9 @@ public:
 	// Team play: which duelist of the owning team this card belongs to (0 or 1).
 	// Decides whose hand/Deck/Extra Deck it lives in.
 	uint8_t duelist{ 0 };
+	// Team play: the duelist whose Deck/Extra Deck the card started in. "Return to owner"
+	// sends the card back to this duelist.
+	uint8_t owner_duelist{ 0 };
 	struct summon_info {
 		uint32_t type{};
 		uint8_t player{};

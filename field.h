@@ -344,6 +344,9 @@ struct processor {
 	bool overdraw[2];
 	int32_t check_level;
 	bool shuffle_check_disabled;
+	// Team play: duelist chosen to receive cards moving into each team's hand/Deck/Extra Deck.
+	// DUELIST_ANY means no choice was made (keep the card's duelist, or return it to its owner).
+	uint8_t team_dest_duelist[2]{ DUELIST_ANY, DUELIST_ANY };
 	bool shuffle_hand_check[2];
 	bool shuffle_deck_check[2];
 	bool deck_reversed;
@@ -459,6 +462,7 @@ public:
 	card* get_deck_top(uint8_t playerid, uint8_t duelist) const;
 	uint32_t get_duelist_count(uint8_t playerid, uint8_t location, uint8_t duelist) const;
 	uint8_t resolve_draw_duelist(uint8_t playerid, effect* reason_effect) const;
+	void team_retag(card* pcard, uint8_t playerid, uint8_t location, uint8_t preloc, uint8_t preplayer);
 	bool has_separate_pzone(uint8_t p) const;
 	uint32_t get_pzone_zones_flag() const;
 	uint8_t get_pzone_index(uint8_t seq, uint8_t p) const;

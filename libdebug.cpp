@@ -109,6 +109,17 @@ LUA_STATIC_FUNCTION(SetPlayerInfo) {
 	player.draw_count = drawcount;
 	return 0;
 }
+// Team play (testing hook): make cards moving into team's hand/Deck/Extra Deck join this duelist.
+// duelist 0 or 1 forces it; any other value (e.g. 255) clears the override.
+LUA_STATIC_FUNCTION(SetTeamDestDuelist) {
+	check_param_count(L, 2);
+	auto team = lua_get<uint8_t>(L, 1);
+	auto duelist = lua_get<uint8_t>(L, 2);
+	if(team > 1)
+		return 0;
+	pduel->game_field->core.team_dest_duelist[team] = duelist <= 1 ? duelist : DUELIST_ANY;
+	return 0;
+}
 LUA_STATIC_FUNCTION(PreSummon) {
 	check_param_count(L, 2);
 	auto pcard = lua_get<card*, true>(L, 1);

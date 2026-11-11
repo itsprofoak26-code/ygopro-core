@@ -4831,6 +4831,7 @@ bool field::process(Processors::DiscardDeck& arg) {
 			pcard->previous.pzone = pcard->current.pzone;
 			pcard->current.controler = PLAYER_NONE;
 			pcard->current.location = 0;
+			team_retag(pcard, pcard->owner, dest, pcard->previous.location, pcard->previous.controler);
 			add_card(pcard->owner, pcard, dest, 0);
 			pcard->enable_field_effect(true);
 			pcard->current.position = POS_FACEUP;

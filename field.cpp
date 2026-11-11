@@ -268,6 +268,7 @@ bool field::move_card(uint8_t playerid, card* pcard, uint8_t location, uint8_t s
 	if (!is_location_useable(playerid, location, sequence))
 		return false;
 	uint8_t preplayer = pcard->current.controler;
+	const uint8_t preloc = pcard->current.location;
 	if(pcard->is_extra_deck_monster() && (location & (LOCATION_HAND | LOCATION_DECK))) {
 		location = LOCATION_EXTRA;
 		pcard->sendto_param.position = POS_FACEDOWN_DEFENSE;
@@ -395,6 +396,7 @@ bool field::move_card(uint8_t playerid, card* pcard, uint8_t location, uint8_t s
 			remove_card(pcard);
 		}
 	}
+	team_retag(pcard, playerid, location, preloc, preplayer);
 	add_card(playerid, pcard, location, sequence, pzone);
 	return true;
 }
@@ -1271,6 +1273,24 @@ uint32_t field::get_duelist_count(uint8_t playerid, uint8_t location, uint8_t du
 // Team play (Milestone 1 placeholder until duelist choice exists):
 // an effect from one of the team's own cards draws from that card's duelist;
 // anything else draws from the duelist with the most cards left in their Deck.
+// Team play: decide which duelist's hand/Deck/Extra Deck a card joins when it moves.
+// - A duelist was chosen for this move: that duelist.
+// - Moving between private zones of the same team (draw, search, hand to Deck): keep its duelist.
+// - Coming from a shared zone (field, GY, banished) or from the other team: its owner duelist
+//   (return-to-owner rule). Cards ending up with the non-owning team default to duelist 0.
+void field::team_retag(card* pcard, uint8_t playerid, uint8_t location, uint8_t preloc, uint8_t preplayer) {
+	constexpr uint32_t PRIVATE = LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA;
+	if(!is_team_play() || !(location & PRIVATE) || playerid > 1)
+		return;
+	const auto chosen = core.team_dest_duelist[playerid];
+	if(chosen <= 1) {
+		pcard->duelist = chosen;
+		return;
+	}
+	if((preloc & PRIVATE) && preplayer == playerid)
+		return;
+	pcard->duelist = (playerid == pcard->owner) ? pcard->owner_duelist : 0;
+}
 uint8_t field::resolve_draw_duelist(uint8_t playerid, effect* reason_effect) const {
 	if(reason_effect) {
 		card* handler = reason_effect->get_handler();

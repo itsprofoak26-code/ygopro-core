@@ -89,6 +89,7 @@ void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
 		card* pcard = pduel->new_card(info.code);
 		pcard->owner = info.team;
 		pcard->duelist = static_cast<uint8_t>(duelist);
+		pcard->owner_duelist = pcard->duelist;
 		game_field.add_card(info.team, pcard, static_cast<uint8_t>(info.loc), 0);
 		pcard->current.position = POS_FACEDOWN_DEFENSE;
 		pcard->enable_field_effect(true);
