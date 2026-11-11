@@ -63,6 +63,7 @@ struct chain {
 	uint16_t chain_id;
 	uint16_t triggering_location;
 	uint8_t triggering_duelist{ 0 }; // team play: duelist of the card when the effect was activated
+	uint8_t team_choice[2]{ DUELIST_ANY, DUELIST_ANY }; // team play: duelist chosen for each team
 	uint32_t triggering_sequence;
 	uint32_t triggering_status{};
 	uint32_t triggering_summon_type{};
@@ -472,6 +473,10 @@ public:
 	}
 	// Duelist whose Deck (or Extra Deck) a "top/bottom N cards" operation of the current effect uses.
 	uint8_t team_deck_duelist(uint8_t team, uint8_t location) const;
+	// Duelist chosen for `team` by the chain link that is activating/resolving the current effect
+	uint8_t team_chain_choice(uint8_t team) const;
+	// Whether a new chain link must ask which duelist of `team` it applies to
+	bool team_choice_needed(const chain& ch, uint8_t team) const;
 	// Brings that duelist's cards to the top (or bottom) of the team's shared Deck/face-down Extra Deck
 	// list, keeping each duelist's own order, and returns how many cards the operation may use.
 	// Outside team play it changes nothing and returns the whole count.

@@ -264,6 +264,8 @@ struct ForcedBattle : public Process<false> {
 };
 struct AddChain : public Process<false> {
 	bool is_activated_effect;
+	uint8_t team_choice_stage{ 0 }; // team play duelist choice: 0/2 ask own/opposing team, 1/3 read answer
+	uint8_t team_choice_team{ 0 };
 	AddChain(uint16_t step_) :
 		Process(step_), is_activated_effect(false) {}
 };

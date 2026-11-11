@@ -3846,6 +3846,41 @@ bool field::process(Processors::AddChain& arg) {
 		return FALSE;
 	}
 	case 8: {
+		// Team play: once costs and targets are done, choose which duelist of each team the effect
+		// applies to (own team, then opposing team). Either teammate may answer.
+		if(is_team_play() && arg.team_choice_stage < 4) {
+			auto& clit = core.current_chain.back();
+			const uint8_t tp = clit.triggering_player;
+			if(arg.team_choice_stage == 0 || arg.team_choice_stage == 2) {
+				const uint8_t team = arg.team_choice_stage == 0 ? tp : 1 - tp;
+				if(tp <= 1 && team_choice_needed(clit, team)) {
+					auto message = pduel->new_message(MSG_HINT);
+					message->write<uint8_t>(HINT_SELECTMSG);
+					message->write<uint8_t>(tp);
+					message->write<uint64_t>(TEAM_DUELIST_DESC + (team == tp ? 4 : 5));
+					core.select_options.clear();
+					core.select_options.push_back(TEAM_DUELIST_DESC + team * 2 + 0);
+					core.select_options.push_back(TEAM_DUELIST_DESC + team * 2 + 1);
+					emplace_process<Processors::SelectOption>(tp);
+					arg.team_choice_team = team;
+					arg.team_choice_stage += 1;
+				} else {
+					arg.team_choice_stage += 2;
+				}
+			} else {
+				const uint8_t team = arg.team_choice_team;
+				const auto choice = static_cast<uint8_t>(returns.at<int32_t>(0) == 1 ? 1 : 0);
+				clit.team_choice[team] = choice;
+				// Show everyone who was chosen
+				auto message = pduel->new_message(MSG_HINT);
+				message->write<uint8_t>(HINT_OPSELECTED);
+				message->write<uint8_t>(tp);
+				message->write<uint64_t>(TEAM_DUELIST_DESC + team * 2 + choice);
+				arg.team_choice_stage += 1;
+			}
+			arg.step = 7; // run step 8 again
+			return FALSE;
+		}
 		break_effect(false);
 		auto& clit = core.current_chain.back();
 		effect* peffect = clit.triggering_effect;

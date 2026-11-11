@@ -1283,7 +1283,9 @@ void field::team_retag(card* pcard, uint8_t playerid, uint8_t location, uint8_t 
 	constexpr uint32_t PRIVATE = LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA;
 	if(!is_team_play() || !(location & PRIVATE) || playerid > 1)
 		return;
-	const auto chosen = core.team_dest_duelist[playerid];
+	auto chosen = core.team_dest_duelist[playerid];
+	if(chosen > 1)
+		chosen = team_chain_choice(playerid);
 	if(chosen <= 1) {
 		pcard->duelist = chosen;
 		return;
@@ -1307,6 +1309,8 @@ uint8_t field::team_scope(uint8_t team) const {
 	// (Spells/Traps played from the hand record the field, so they are team-wide.)
 	if(!core.current_chain.empty() && core.current_chain.back().triggering_effect == peffect) {
 		const auto& ch = core.current_chain.back();
+		if(team != ch.triggering_player)
+			return ch.team_choice[team]; // rule 3: the chosen opposing duelist, if one was chosen
 		if(ch.triggering_controler != team || !(ch.triggering_location & PRIVATE))
 			return DUELIST_ANY;
 		return ch.triggering_duelist;
@@ -1320,12 +1324,56 @@ uint8_t field::team_scope(uint8_t team) const {
 		return DUELIST_ANY;
 	return handler->duelist;
 }
+uint8_t field::team_chain_choice(uint8_t team) const {
+	if(team > 1 || !core.reason_effect || core.current_chain.empty())
+		return DUELIST_ANY;
+	const auto& ch = core.current_chain.back();
+	return ch.triggering_effect == core.reason_effect ? ch.team_choice[team] : DUELIST_ANY;
+}
+bool field::team_choice_needed(const chain& ch, uint8_t team) const {
+	// Category values from CardScripts constant.lua (operation info keys)
+	constexpr uint64_t CAT_TOHAND = 0x8, CAT_TODECK = 0x10, CAT_DECKDES = 0x40, CAT_HANDES = 0x80, CAT_DRAW = 0x10000;
+	constexpr uint32_t PRIVATE = LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA;
+	constexpr uint32_t SHARED_PILES = LOCATION_GRAVE | LOCATION_REMOVED;
+	const uint8_t tp = ch.triggering_player;
+	auto hits = [&](uint64_t category, auto pred) {
+		for(const auto* infos : { &ch.opinfos, &ch.possibleopinfos }) {
+			auto it = infos->find(category);
+			if(it != infos->end() && pred(it->second))
+				return true;
+		}
+		return false;
+	};
+	auto for_team = [team](const optarget& o) { return o.op_player == team || o.op_player == PLAYER_ALL; };
+	if(team == tp) {
+		// Rule 1: an effect activated from a hand/Deck/Extra Deck is already bound to its duelist
+		if(ch.triggering_location & PRIVATE)
+			return false;
+		// Rule 2: draws and milling, and cards added/returned to the hand or Deck from the GY or banished
+		if(hits(CAT_DRAW, for_team) || hits(CAT_DECKDES, for_team))
+			return true;
+		auto from_shared = [&](const optarget& o) {
+			if(o.op_cards) {
+				for(auto* pcard : o.op_cards->container)
+					if((pcard->current.location & SHARED_PILES) && pcard->owner == team)
+						return true;
+				return false;
+			}
+			return for_team(o) && (o.op_param & SHARED_PILES) != 0;
+		};
+		return hits(CAT_TOHAND, from_shared) || hits(CAT_TODECK, from_shared);
+	}
+	// Rule 3: effects on the opposing team's hand or Deck
+	return hits(CAT_HANDES, for_team) || hits(CAT_DRAW, for_team) || hits(CAT_DECKDES, for_team);
+}
 uint8_t field::team_deck_duelist(uint8_t team, uint8_t location) const {
 	if(!is_team_play() || team > 1)
 		return DUELIST_ANY;
 	if(auto scope = team_scope(team); scope <= 1)
 		return scope;
 	if(auto chosen = core.team_dest_duelist[team]; chosen <= 1)
+		return chosen;
+	if(auto chosen = team_chain_choice(team); chosen <= 1)
 		return chosen;
 	// No choice yet (the duelist-choice prompt is not built): the duelist with more cards there
 	return get_duelist_count(team, location, 1) > get_duelist_count(team, location, 0) ? 1 : 0;
