@@ -349,6 +349,9 @@ struct processor {
 	// Team play: duelist chosen to receive cards moving into each team's hand/Deck/Extra Deck.
 	// DUELIST_ANY means no choice was made (keep the card's duelist, or return it to its owner).
 	uint8_t team_dest_duelist[2]{ DUELIST_ANY, DUELIST_ANY };
+	// Team play: the duelist of each team performing the action being checked (e.g. who is drawing),
+	// so per-duelist player effects (effect::team_duelist) can tell whether they apply
+	uint8_t team_check_duelist[2]{ DUELIST_ANY, DUELIST_ANY };
 	bool shuffle_hand_check[2];
 	bool shuffle_deck_check[2];
 	bool deck_reversed;
@@ -481,6 +484,9 @@ public:
 	bool team_choice_pending(uint8_t team) const;
 	// If so, queue the choice (it runs before the next queued unit). Returns true if queued.
 	bool team_ask_before(uint8_t team);
+	// If the cards that triggered a chain link are in one duelist's hand/Deck/Extra Deck, that
+	// duelist is that team's choice (no prompt; announced to everyone)
+	void team_choose_from_event(chain& ch);
 	// Brings that duelist's cards to the top (or bottom) of the team's shared Deck/face-down Extra Deck
 	// list, keeping each duelist's own order, and returns how many cards the operation may use.
 	// Outside team play it changes nothing and returns the whole count.

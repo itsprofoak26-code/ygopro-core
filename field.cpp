@@ -1383,6 +1383,35 @@ bool field::team_choice_pending(uint8_t team) const {
 		return false;
 	return true;
 }
+void field::team_choose_from_event(chain& ch) {
+	constexpr uint32_t PRIVATE = LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA;
+	if(!ch.evt.event_cards || ch.triggering_player > 1)
+		return;
+	for(uint8_t team = 0; team < 2; ++team) {
+		if(ch.team_choice[team] <= 1)
+			continue;
+		// Rule 1: an effect activated from its duelist's hand is already bound on its own team
+		if(team == ch.triggering_player && team == ch.triggering_controler && (ch.triggering_location & PRIVATE))
+			continue;
+		uint8_t found = DUELIST_ANY;
+		bool mixed = false;
+		for(auto* pcard : ch.evt.event_cards->container) {
+			if(pcard->current.controler != team || !(pcard->current.location & PRIVATE))
+				continue;
+			if(found == DUELIST_ANY)
+				found = pcard->duelist;
+			else if(found != pcard->duelist)
+				mixed = true;
+		}
+		if(found > 1 || mixed)
+			continue;
+		ch.team_choice[team] = found;
+		auto message = pduel->new_message(MSG_HINT);
+		message->write<uint8_t>(HINT_OPSELECTED);
+		message->write<uint8_t>(ch.triggering_player);
+		message->write<uint64_t>(TEAM_DUELIST_DESC + team * 2 + found);
+	}
+}
 bool field::team_ask_before(uint8_t team) {
 	if(!team_choice_pending(team))
 		return false;

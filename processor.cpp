@@ -3849,6 +3849,8 @@ bool field::process(Processors::AddChain& arg) {
 		// Team play: once costs and targets are done, choose which duelist of each team the effect
 		// applies to (own team, then opposing team). Either teammate may answer.
 		// (A cost may already have asked, e.g. a mill cost: then no second prompt.)
+		if(is_team_play() && arg.team_choice_stage == 0)
+			team_choose_from_event(core.current_chain.back());
 		if(is_team_play() && arg.team_choice_stage < 2) {
 			auto& clit = core.current_chain.back();
 			const uint8_t tp = clit.triggering_player;

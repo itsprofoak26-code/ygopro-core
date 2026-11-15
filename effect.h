@@ -28,6 +28,9 @@ public:
 	uint8_t count_flag{};
 	uint8_t count_hopt_index{};
 	uint8_t effect_owner{ PLAYER_NONE };
+	// Team play: for effects registered by a chain link (Duel.RegisterEffect), the duelist of each
+	// team the effect applies to (DUELIST_ANY: the whole team). E.g. Droll & Lock Bird's lock.
+	uint8_t team_duelist[2]{ DUELIST_ANY, DUELIST_ANY };
 	uint16_t type{};
 	uint16_t copy_id{};
 	uint16_t range{};

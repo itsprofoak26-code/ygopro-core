@@ -458,6 +458,12 @@ int32_t effect::is_target(card* pcard) {
 			}
 		}
 	}
+	// Team play: an effect restricted to one duelist of a team only reaches that duelist's
+	// hand, Deck and Extra Deck
+	if(pcard->current.controler <= 1 && team_duelist[pcard->current.controler] <= 1
+	   && (pcard->current.location & (LOCATION_HAND | LOCATION_DECK | LOCATION_EXTRA))
+	   && pcard->duelist != team_duelist[pcard->current.controler])
+		return FALSE;
 	return is_fit_target_function(pcard);
 }
 int32_t effect::is_fit_target_function(card* pcard) {
@@ -472,6 +478,12 @@ int32_t effect::is_fit_target_function(card* pcard) {
 }
 int32_t effect::is_target_player(uint8_t playerid) {
 	if(!is_flag(EFFECT_FLAG_PLAYER_TARGET))
+		return FALSE;
+	// Team play: an effect restricted to one duelist of a team only applies when that duelist acts.
+	// When the acting duelist is unknown (e.g. "could this player draw?" checks) it does not block;
+	// the action itself (e.g. the draw) is checked again with the duelist known.
+	if(playerid <= 1 && team_duelist[playerid] <= 1
+	   && pduel->game_field->core.team_check_duelist[playerid] != team_duelist[playerid])
 		return FALSE;
 	uint8_t self = get_handler_player();
 	if(is_flag(EFFECT_FLAG_ABSOLUTE_TARGET)) {

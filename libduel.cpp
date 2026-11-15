@@ -85,6 +85,12 @@ LUA_STATIC_FUNCTION(RegisterEffect) {
 	auto playerid = lua_get<uint8_t>(L, 2);
 	if(playerid != 0 && playerid != 1)
 		return 0;
+	// Team play: an effect created by an effect bound to one duelist of a team (rule 1, or a chosen
+	// duelist) applies only to that duelist of that team
+	if(pduel->game_field->is_team_play()) {
+		peffect->team_duelist[0] = pduel->game_field->team_scope(0);
+		peffect->team_duelist[1] = pduel->game_field->team_scope(1);
+	}
 	pduel->game_field->add_effect(peffect, playerid);
 	return 0;
 }

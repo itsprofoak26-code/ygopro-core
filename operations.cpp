@@ -420,7 +420,13 @@ bool field::process(Processors::Draw& arg) {
 		card_vector cv;
 		uint32_t drawn = 0;
 		uint32_t public_count = 0;
-		if(!(reason & REASON_RULE) && !is_player_can_draw(playerid)) {
+		// Team play: per-duelist "cannot draw" effects need to know which duelist draws
+		if(is_team_play() && playerid <= 1)
+			core.team_check_duelist[playerid] = arg.duelist == DUELIST_ANY ? resolve_draw_duelist(playerid, reason_effect) : arg.duelist;
+		const bool can_draw = (reason & REASON_RULE) || is_player_can_draw(playerid);
+		if(playerid <= 1)
+			core.team_check_duelist[playerid] = DUELIST_ANY;
+		if(!can_draw) {
 			returns.set<int32_t>(0, 0);
 			return TRUE;
 		}
