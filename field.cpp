@@ -1312,12 +1312,19 @@ uint8_t field::team_scope(uint8_t team) const {
 		// A duelist chosen for this team: the effect applies to that duelist only (either team)
 		if(ch.team_choice[team] <= 1)
 			return ch.team_choice[team];
+		// An effect created by a duelist-bound effect keeps that binding (see below)
+		if(peffect->team_duelist[team] <= 1)
+			return peffect->team_duelist[team];
 		if(team != ch.triggering_player)
 			return DUELIST_ANY;
 		if(ch.triggering_controler != team || !(ch.triggering_location & PRIVATE))
 			return DUELIST_ANY;
 		return ch.triggering_duelist;
 	}
+	// A lingering effect created by a duelist-bound effect (Duel.RegisterEffect stamps it, e.g.
+	// Mulcharmy Fuwalos's "draw 1 each time…" and End Phase effects) stays bound to that duelist.
+	if(peffect->team_duelist[team] <= 1)
+		return peffect->team_duelist[team];
 	// Activation checks and continuous effects: where the card is now. Activating a card itself
 	// (Spell/Trap) puts it on the field, so it is team-wide.
 	if(peffect->type & EFFECT_TYPE_ACTIVATE)

@@ -87,7 +87,9 @@ LUA_STATIC_FUNCTION(RegisterEffect) {
 		return 0;
 	// Team play: an effect created by an effect bound to one duelist of a team (rule 1, or a chosen
 	// duelist) applies only to that duelist of that team
-	if(pduel->game_field->is_team_play()) {
+	// Activation limits ("you can only activate this once per turn", "you cannot Special Summon the
+	// turn you activate this": EFFECT_FLAG_OATH) stay team-wide.
+	if(pduel->game_field->is_team_play() && !peffect->is_flag(EFFECT_FLAG_OATH)) {
 		peffect->team_duelist[0] = pduel->game_field->team_scope(0);
 		peffect->team_duelist[1] = pduel->game_field->team_scope(1);
 	}
